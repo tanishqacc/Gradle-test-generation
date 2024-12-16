@@ -1,0 +1,92 @@
+plugins {
+    // Apply the application plugin to add support for building a CLI application in Java.
+    id 'application'
+}
+
+repositories {
+    // Use Maven Central for resolving dependencies.
+    mavenCentral()
+}
+
+dependencies {
+    // Use JUnit test framework.
+    testImplementation libs.junit
+
+    // This dependency is used by the application.
+    implementation libs.guava
+}
+
+// Add this to your build.gradle file
+def srcDir = "src/main/java"   // Directory containing your Java source files
+def testDir = "src/test/java"   // Directory where test files will be generated
+
+tasks.register("generateTests") {
+    group = "Testing"
+    description = "Generates test files for public methods in Java classes."
+
+    dependsOn 'classes' // Ensure source files are compiled before running this task
+
+    doLast {
+        def srcFolder = file(srcDir)
+        def testFolder = file(testDir)
+
+        if (!srcFolder.exists()) {
+            throw new GradleException("Source directory not found: ${srcDir}")
+        }
+
+        srcFolder.eachFileRecurse { file ->
+            if (file.name.endsWith(".java")) {
+                def className = file.path
+                        .replace(srcFolder.path + File.separator, "")
+                        .replace(File.separator, ".")
+                        .replace(".java", "")
+
+                def testFileName = testFolder.path + File.separator + className.replace(".", File.separator) + "Test.java"
+                def testFile = new File(testFileName)
+
+                if (!testFile.parentFile.exists()) {
+                    testFile.parentFile.mkdirs()
+                }
+
+                if (!testFile.exists()) {
+                    println "Generating test for class: $className"
+
+                    def classLoader = new URLClassLoader([new File("${buildDir}/classes/java/main").toURI().toURL()] as URL[], this.class.classLoader)
+                    def clazz = classLoader.loadClass(className)
+
+                    def testContent = new StringBuilder()
+                    testContent.append("package ${clazz.package.name};\n\n")
+                    testContent.append("import org.junit.jupiter.api.Test;\n\n")
+                    testContent.append("import static org.junit.jupiter.api.Assertions.*;\n\n")
+                    testContent.append("public class ${clazz.simpleName}Test {\n")
+
+                    clazz.declaredMethods.findAll { it.modifiers & java.lang.reflect.Modifier.PUBLIC }.each { method ->
+                        testContent.append("    @Test\n")
+                        testContent.append("    public void test${method.name.capitalize()}() {\n")
+                        testContent.append("        // TODO: Implement test for ${method.name}\n")
+                        testContent.append("    }\n\n")
+                    }
+
+                    testContent.append("}\n")
+
+                    testFile.text = testContent.toString()
+                } else {
+                    println "Test file already exists: $testFileName"
+                }
+            }
+        }
+    }
+}
+
+
+// Apply a specific Java toolchain to ease working on different environments.
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(8)
+    }
+}
+
+application {
+    // Define the main class for the application.
+    mainClass = 'org.example.App'
+}
